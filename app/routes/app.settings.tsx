@@ -6,11 +6,13 @@ import type {
 } from "react-router";
 import { useFetcher, useLoaderData, useRouteError } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
+import { authenticate, getOrCreateStore } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+  const store = await getOrCreateStore(session.shop, admin, session);
 
   // Fetch shop details and themes from Shopify Admin GraphQL API
   let shopData = {
@@ -95,60 +97,73 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ];
   }
 
-  const freePlan = {
-    id: "plan_free",
-    name: "Free",
-    price: 0,
-    currency: "USD",
-    billingInterval: "EVERY_30_DAYS",
-    trialDays: 0,
-    bundleLimit: 1,
-    features: "1 Active Bundle, Community Support",
+  // Query real plans from DB or seed defaults
+  let plans = await prisma.plan.findMany({
+    orderBy: { price: "asc" },
+  });
+
+  if (plans.length === 0) {
+    const freePlan = await prisma.plan.create({
+      data: {
+        name: "Free",
+        price: 0,
+        currency: "USD",
+        billingInterval: "EVERY_30_DAYS",
+        trialDays: 0,
+        bundleLimit: 1,
+        features: "1 Active Bundle, Community Support",
+      },
+    });
+
+    const starterPlan = await prisma.plan.create({
+      data: {
+        name: "Starter",
+        price: 9.99,
+        currency: "USD",
+        billingInterval: "EVERY_30_DAYS",
+        trialDays: 14,
+        bundleLimit: 5,
+        features: "5 Active Bundles, Priority Support, Analytics",
+      },
+    });
+
+    const proPlan = await prisma.plan.create({
+      data: {
+        name: "Pro",
+        price: 19.99,
+        currency: "USD",
+        billingInterval: "EVERY_30_DAYS",
+        trialDays: 14,
+        bundleLimit: 999,
+        features:
+          "Unlimited Active Bundles, 24/7 Priority Support, Full Analytics, Custom Styling",
+      },
+    });
+
+    plans = [freePlan, starterPlan, proPlan];
+  }
+
+  // Fetch real subscription history for this store
+  const subscriptions = await prisma.subscription.findMany({
+    where: { shopId: store.id },
+    orderBy: { createdAt: "desc" },
+    include: { plan: true },
+  });
+
+  const activeBundlesCount = await prisma.bundle.count({
+    where: { storeId: store.id, status: "ACTIVE" },
+  });
+
+  const storeWithCount = {
+    ...store,
+    _count: { bundles: activeBundlesCount },
   };
-
-  const starterPlan = {
-    id: "plan_starter",
-    name: "Starter",
-    price: 9.99,
-    currency: "USD",
-    billingInterval: "EVERY_30_DAYS",
-    trialDays: 7,
-    bundleLimit: 5,
-    features: "5 Active Bundles, Priority Support, Analytics",
-  };
-
-  const proPlan = {
-    id: "plan_pro",
-    name: "Pro",
-    price: 29.99,
-    currency: "USD",
-    billingInterval: "EVERY_30_DAYS",
-    trialDays: 14,
-    bundleLimit: 50,
-    features: "Unlimited Active Bundles, 24/7 Priority Support, Full Analytics, Custom Styling",
-  };
-
-  const plans = [freePlan, starterPlan, proPlan];
-
-  const store = {
-    id: "store_1",
-    shop: session.shop,
-    name: shopData.name,
-    email: shopData.email,
-    currency: shopData.currencyCode,
-    planId: freePlan.id,
-    plan: freePlan,
-    subscriptions: [],
-    _count: { bundles: 0 },
-  };
-
-  const subscriptions: any[] = [];
 
   return {
     shop: session.shop,
     shopData,
     themes,
-    store,
+    store: storeWithCount,
     plans,
     subscriptions,
     sampleProductHandle,
@@ -156,17 +171,60 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const store = await getOrCreateStore(session.shop, admin, session);
   const formData = await request.formData();
   const intent = formData.get("intent");
+  const planId = formData.get("planId");
 
-  if (intent === "selectPlan") {
-    const planName = String(formData.get("planName") || "Selected Plan");
+  if (intent === "selectPlan" || intent === "changePlan" || planId) {
+    const targetPlanQuery = String(planId || formData.get("planName") || "");
+    let targetPlan = await prisma.plan.findUnique({
+      where: { id: targetPlanQuery },
+    });
+    if (!targetPlan) {
+      targetPlan = await prisma.plan.findFirst({
+        where: { name: targetPlanQuery },
+      });
+    }
+
+    if (!targetPlan) {
+      return Response.json(
+        { success: false, error: "Plan not found in database" },
+        { status: 404 },
+      );
+    }
+
+    await prisma.store.update({
+      where: { id: store.id },
+      data: { planId: targetPlan.id },
+    });
+
+    await prisma.subscription.updateMany({
+      where: { shopId: store.id, status: "ACTIVE" },
+      data: { status: "CANCELLED" },
+    });
+
+    const subscription = await prisma.subscription.create({
+      data: {
+        shopId: store.id,
+        planId: targetPlan.id,
+        name: targetPlan.name,
+        status: "ACTIVE",
+        price: targetPlan.price,
+        currency: targetPlan.currency || "USD",
+        interval: targetPlan.billingInterval || "EVERY_30_DAYS",
+        trialDays: targetPlan.trialDays || 0,
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+      include: { plan: true },
+    });
+
     return Response.json({
       success: true,
-      message: `Plan changed to "${planName}" successfully!`,
-      intent: "selectPlan",
-      planName,
+      message: `Plan changed to "${targetPlan.name}" successfully!`,
+      plan: targetPlan,
+      subscription,
     });
   }
 
@@ -285,9 +343,7 @@ export default function SettingsPage() {
   const themeEditorProductUrl = `${themeEditorBaseUrl}?previewPath=${previewPath}`;
   const themeEditorAppEmbedUrl = `${themeEditorBaseUrl}?context=apps`;
 
-  // Direct product page URLs for bundle blocks (opens the product page preview directly in theme customizer)
-  const classicBundleBlockUrl = `${themeEditorBaseUrl}?previewPath=${previewPath}`;
-  const bogoBundleBlockUrl = `${themeEditorBaseUrl}?previewPath=${previewPath}`;
+  // Direct product page URLs for perk blocks (opens the product page preview directly in theme customizer)
   const fbtBundleBlockUrl = `${themeEditorBaseUrl}?previewPath=${previewPath}`;
 
   const isSubmitting = fetcher.state === "submitting";
@@ -295,10 +351,10 @@ export default function SettingsPage() {
     { success?: boolean; message?: string; intent?: string } | undefined;
 
   return (
-    <s-page heading="App Settings &amp; Configuration">
+    <s-page heading="App Settings & Configuration">
       {/* PRIMARY ACTION */}
       <s-button slot="primary-action" variant="primary" href="/app/integration">
-        Create Bundle
+        Configure Perks ＋
       </s-button>
 
       {/* SUCCESS / FEEDBACK BANNER */}
@@ -454,68 +510,8 @@ export default function SettingsPage() {
                   bundle widgets:
                 </s-paragraph>
 
-                <s-grid gridTemplateColumns="repeat(3, 1fr)" gap="base">
-                  {/* Classic Bundle Widget */}
-                  <s-box
-                    background="subdued"
-                    border="base"
-                    borderRadius="base"
-                    padding="base"
-                  >
-                    <s-stack direction="block" gap="base">
-                      <s-stack
-                        direction="inline"
-                        justifyContent="space-between"
-                        alignItems="center"
-                      >
-                        <s-heading>📦 Classic Bundle</s-heading>
-                        <s-badge tone="info">Cart Transform</s-badge>
-                      </s-stack>
-                      <s-paragraph>
-                        "Buy Together and Save" kit widget with dynamic variant
-                        inventory and native pricing.
-                      </s-paragraph>
-                      <s-button
-                        variant="secondary"
-                        href={classicBundleBlockUrl}
-                        target="_blank"
-                      >
-                        Add Classic Bundle ↗
-                      </s-button>
-                    </s-stack>
-                  </s-box>
-
-                  {/* BOGO Bundle Widget */}
-                  <s-box
-                    background="subdued"
-                    border="base"
-                    borderRadius="base"
-                    padding="base"
-                  >
-                    <s-stack direction="block" gap="base">
-                      <s-stack
-                        direction="inline"
-                        justifyContent="space-between"
-                        alignItems="center"
-                      >
-                        <s-heading>🎁 Buy X Get Y (BOGO)</s-heading>
-                        <s-badge tone="warning">Discount Function</s-badge>
-                      </s-stack>
-                      <s-paragraph>
-                        Volume discount &amp; free gift promotion block with
-                        promotional badges and instant reward unlock.
-                      </s-paragraph>
-                      <s-button
-                        variant="secondary"
-                        href={bogoBundleBlockUrl}
-                        target="_blank"
-                      >
-                        Add BOGO Bundle ↗
-                      </s-button>
-                    </s-stack>
-                  </s-box>
-
-                  {/* FBT Bundle Widget */}
+                <s-grid gridTemplateColumns="repeat(2, 1fr)" gap="base">
+                  {/* FBT Perk Widget */}
                   <s-box
                     background="subdued"
                     border="base"
@@ -540,7 +536,36 @@ export default function SettingsPage() {
                         href={fbtBundleBlockUrl}
                         target="_blank"
                       >
-                        Add FBT Bundle ↗
+                        Add FBT Widget ↗
+                      </s-button>
+                    </s-stack>
+                  </s-box>
+
+                  {/* Free Shipping Bar Perk */}
+                  <s-box
+                    background="subdued"
+                    border="base"
+                    borderRadius="base"
+                    padding="base"
+                  >
+                    <s-stack direction="block" gap="base">
+                      <s-stack
+                        direction="inline"
+                        justifyContent="space-between"
+                        alignItems="center"
+                      >
+                        <s-heading>🚚 Free Shipping Bar</s-heading>
+                        <s-badge tone="info">AOV Booster</s-badge>
+                      </s-stack>
+                      <s-paragraph>
+                        Dynamic cart goal and milestone discounts bar that
+                        motivates customers to increase order totals.
+                      </s-paragraph>
+                      <s-button
+                        variant="secondary"
+                        href="/app/integration/free-shipping-bar"
+                      >
+                        Configure Shipping Bar ↗
                       </s-button>
                     </s-stack>
                   </s-box>
@@ -675,7 +700,9 @@ export default function SettingsPage() {
                           ? "Unlimited Active Bundles"
                           : `Up to ${freePlan?.bundleLimit ?? 1} Active Bundle${(freePlan?.bundleLimit ?? 1) === 1 ? "" : "s"}`}
                       </s-list-item>
-                      <s-list-item>BOGO &amp; FBT Bundle Types</s-list-item>
+                      <s-list-item>
+                        Frequently Bought Together &amp; Free Shipping Bar
+                      </s-list-item>
                       <s-list-item>Automatic Discounts</s-list-item>
                       <s-list-item>Standard Community Support</s-list-item>
                     </s-unordered-list>
@@ -754,7 +781,9 @@ export default function SettingsPage() {
                           ? "Unlimited Active Bundles"
                           : `Up to ${starterPlan?.bundleLimit ?? 5} Active Bundles`}
                       </s-list-item>
-                      <s-list-item>Classic, BOGO &amp; FBT Widgets</s-list-item>
+                      <s-list-item>
+                        Frequently Bought Together &amp; Shipping Bar Widgets
+                      </s-list-item>
                       <s-list-item>
                         Free Shipping Bar (Multiple threshold Discounts)
                       </s-list-item>

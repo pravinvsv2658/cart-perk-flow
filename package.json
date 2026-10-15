@@ -15,9 +15,13 @@
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "prisma": "prisma",
+    "seed": "prisma db seed",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "type": "module",
   "engines": {

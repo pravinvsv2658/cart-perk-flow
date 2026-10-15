@@ -1,12 +1,6 @@
 export interface BundleBenefitsSectionProps {
   bundleType?:
-    | "CLASSIC_BUNDLE"
-    | "BOGO_BUNDLE"
-    | "FBT_BUNDLE"
-    | "classic"
-    | "bogo"
-    | "fbt"
-    | string;
+    "FREE_SHIPPING_BAR" | "free_shipping_bar" | "FBT_BUNDLE" | "fbt" | string;
   bundleTitle?: string;
   discountType?: string;
   discountValue?: string | number;
@@ -19,26 +13,21 @@ export interface BundleBenefitsSectionProps {
 }
 
 export function BundleBenefitsSection({
-  bundleType = "CLASSIC_BUNDLE",
+  bundleType = "FREE_SHIPPING_BAR",
   bundleTitle = "",
   discountType = "percentage",
   discountValue = 0,
   currencySymbol = "$",
   itemCount = 0,
   triggerType = "all",
-  buyQuantity = 1,
-  rewardQuantity = 1,
   isEditing = false,
 }: BundleBenefitsSectionProps) {
-  const normalizedType = (bundleType || "CLASSIC_BUNDLE").toUpperCase();
-  const isBogo =
-    normalizedType.includes("BOGO") || normalizedType.includes("BUY_X_GET_Y");
+  const normalizedType = (bundleType || "FREE_SHIPPING_BAR").toUpperCase();
   const isFbt =
     normalizedType.includes("FBT") ||
     normalizedType.includes("FREQUENTLY_BOUGHT");
-  const isClassic = normalizedType.includes("CLASSIC_BUNDLE");
-
-  const freeShippingBar = normalizedType.includes("FREE_SHIPPING_BAR");
+  const freeShippingBar =
+    normalizedType.includes("FREE_SHIPPING_BAR") || !isFbt;
 
   // Format discount label
   const numDiscountVal =
@@ -69,13 +58,9 @@ export function BundleBenefitsSection({
   }
 
   // Determine section heading
-  let sectionHeading = "Bundle Strategy & Store Benefits";
+  let sectionHeading = "Perk Strategy & Store Benefits";
   if (bundleTitle && bundleTitle.trim()) {
     sectionHeading = `Strategy & Impact for "${bundleTitle.trim()}"`;
-  } else if (isClassic) {
-    sectionHeading = "Classic Bundle Strategy & Impact";
-  } else if (isBogo) {
-    sectionHeading = "Buy X Get Y (BOGO) Strategy & Impact";
   } else if (isFbt) {
     sectionHeading = "Frequently Bought Together Strategy & Impact";
   } else if (freeShippingBar) {
@@ -93,18 +78,6 @@ export function BundleBenefitsSection({
             alignItems="center"
           >
             <s-stack direction="inline" gap="base" alignItems="center">
-              {isClassic && (
-                <>
-                  <s-badge tone="info">Cart Transform</s-badge>
-                  <s-badge tone="success">Native Inventory Sync</s-badge>
-                </>
-              )}
-              {isBogo && (
-                <>
-                  <s-badge tone="warning">Shopify Discount Function</s-badge>
-                  <s-badge tone="info">Tiered Volume Offer</s-badge>
-                </>
-              )}
               {isFbt && (
                 <>
                   <s-badge tone="success">1-Click Cross-Sell</s-badge>
@@ -128,35 +101,6 @@ export function BundleBenefitsSection({
           <s-divider direction="inline" />
 
           {/* DYNAMIC OVERVIEW PARAGRAPH */}
-          {isClassic && (
-            <s-paragraph>
-              {bundleTitle
-                ? `The "${bundleTitle}" bundle `
-                : "This Classic Bundle "}
-              packages{" "}
-              {itemCount > 0 ? `${itemCount} products` : "multiple products"}{" "}
-              together with a <strong>{discountLabel}</strong> incentive. When
-              purchased, Shopify&apos;s <strong>Cart Transform</strong> expands
-              the parent bundle into individual component items at checkout,
-              guaranteeing 100% accurate variant inventory tracking and seamless
-              3PL warehouse fulfillment.
-            </s-paragraph>
-          )}
-
-          {isBogo && (
-            <s-paragraph>
-              {bundleTitle
-                ? `The "${bundleTitle}" offer `
-                : "This BOGO promotion "}
-              motivates shoppers to buy <strong>{buyQuantity} item(s)</strong>{" "}
-              to unlock <strong>{rewardQuantity} reward item(s)</strong> at{" "}
-              <strong>{discountLabel}</strong>. Powered by native{" "}
-              <strong>Shopify Discount Functions</strong>, discounts are
-              calculated automatically in under 5ms at checkout without coupon
-              codes.
-            </s-paragraph>
-          )}
-
           {isFbt && (
             <s-paragraph>
               {bundleTitle
@@ -198,13 +142,7 @@ export function BundleBenefitsSection({
                 borderRadius="base"
                 padding="base"
               >
-                <s-heading>
-                  {isClassic
-                    ? "+25% - +40%"
-                    : isBogo
-                      ? "+30% - +55%"
-                      : "+18% - +32%"}
-                </s-heading>
+                <s-heading>+18% - +32%</s-heading>
                 <s-paragraph tone="neutral">Expected AOV Lift</s-paragraph>
               </s-box>
 
@@ -214,13 +152,7 @@ export function BundleBenefitsSection({
                 borderRadius="base"
                 padding="base"
               >
-                <s-heading>
-                  {isClassic
-                    ? "Cart Transform"
-                    : isBogo
-                      ? "Discount Function"
-                      : "1-Click Ajax"}
-                </s-heading>
+                <s-heading>1-Click Ajax</s-heading>
                 <s-paragraph tone="neutral">Checkout Engine</s-paragraph>
               </s-box>
 
@@ -241,13 +173,19 @@ export function BundleBenefitsSection({
                 padding="base"
               >
                 <s-heading>
-                  {triggerType === "specific"
-                    ? "Target Products"
-                    : triggerType === "collection"
-                      ? "Collection"
-                      : triggerType === "tag"
-                        ? "Product Tags"
-                        : "All Products"}
+                  {(() => {
+                    const norm = (triggerType || "").toLowerCase();
+                    if (norm === "product" || norm === "specific") {
+                      return "Target Products";
+                    }
+                    if (norm === "collection") {
+                      return "Collection";
+                    }
+                    if (norm === "tag" || norm === "tags") {
+                      return "Product Tags";
+                    }
+                    return "All Products";
+                  })()}
                 </s-heading>
                 <s-paragraph tone="neutral">Display Trigger</s-paragraph>
               </s-box>
@@ -257,28 +195,6 @@ export function BundleBenefitsSection({
           {/* KEY BENEFITS LIST */}
           <s-heading>Key Benefits for Your Store:</s-heading>
           <s-unordered-list>
-            {isClassic && (
-              <>
-                <s-list-item>
-                  <s-text type="strong">Real-Time Inventory Safeguard:</s-text>{" "}
-                  No need to isolate pre-kitted physical stock. Each child
-                  variant&apos;s inventory is deducted in real-time from your
-                  active Shopify catalog.
-                </s-list-item>
-                <s-list-item>
-                  <s-text type="strong">
-                    Full Shop Pay &amp; Express Checkout:
-                  </s-text>{" "}
-                  Operates natively within Shopify&apos;s checkout engine
-                  without draft orders or external redirects.
-                </s-list-item>
-                <s-list-item>
-                  <s-text type="strong">Zero Coupon Code Conflicts:</s-text>{" "}
-                  Bundle discounts apply automatically at the cart level without
-                  requiring customers to enter manual codes.
-                </s-list-item>
-              </>
-            )}
             {freeShippingBar && (
               <>
                 <s-list-item>
@@ -308,7 +224,7 @@ export function BundleBenefitsSection({
 
                 <s-list-item>
                   <s-text type="strong">
-                    Increase Conversion & Average Order Value:
+                    Increase Conversion &amp; Average Order Value:
                   </s-text>{" "}
                   Turn shipping and discount goals into purchase incentives that
                   encourage customers to discover additional products and
@@ -319,33 +235,6 @@ export function BundleBenefitsSection({
                   <s-text type="strong">Automatic Rewards at Checkout:</s-text>{" "}
                   Make eligible shipping rewards and discounts easy to unlock
                   without requiring customers to enter coupon codes manually.
-                </s-list-item>
-              </>
-            )}
-
-            {isBogo && (
-              <>
-                <s-list-item>
-                  <s-text type="strong">Accelerated Inventory Velocity:</s-text>{" "}
-                  Pair high-velocity bestsellers with slower-moving stock as
-                  reward incentives to liquidate inventory profitably.
-                </s-list-item>
-                <s-list-item>
-                  <s-text type="strong">
-                    Increased Units Per Transaction (UPT):
-                  </s-text>{" "}
-                  Encourages customers to add multiple quantities to reach
-                  reward thresholds.
-                </s-list-item>
-                <s-list-item>
-                  <s-text type="strong">Zero Discount Code Leaks:</s-text>{" "}
-                  Prevents browser coupon scrapers (Honey, Capital One) from
-                  leaking generic promo codes.
-                </s-list-item>
-                <s-list-item>
-                  <s-text type="strong">Combinable Discounts:</s-text>{" "}
-                  Configured to combine harmoniously with free shipping and
-                  storewide sales.
                 </s-list-item>
               </>
             )}
@@ -388,9 +277,7 @@ export function BundleBenefitsSection({
             <s-stack direction="inline" gap="base" alignItems="center">
               <s-text type="strong">🎨 Theme App Block: </s-text>
               <code>
-                {isClassic && "Classic Bundle"}
-                {isBogo && "BOGO Bundle"}
-                {isFbt && "FBT Bundle"}
+                {isFbt && "Frequently Bought Together"}
                 {freeShippingBar && "Free Shipping Bar"}
               </code>
 
@@ -415,7 +302,7 @@ export function BundleBenefitsSection({
                   >
                     <s-stack gap="base">
                       <code>
-                        &lt;div class="ecomm-free-shipping-bar"
+                        &lt;div class="cartperks-free-shipping-bar"
                         data-cart-total="" data-free-shipping-target=""
                         data-discount-thresholds=""&gt;&amp;nbsp;&lt;/div&gt;
                       </code>
@@ -423,7 +310,7 @@ export function BundleBenefitsSection({
                       <s-button
                         variant="primary"
                         onClick={() => {
-                          const snippet = `<div class="ecomm-free-shipping-bar" data-cart-total="" data-free-shipping-target="" data-discount-thresholds="">&nbsp;</div>`;
+                          const snippet = `<div class="cartperks-free-shipping-bar" data-cart-total="" data-free-shipping-target="" data-discount-thresholds="">&nbsp;</div>`;
                           navigator.clipboard.writeText(snippet);
                         }}
                       >
@@ -451,14 +338,10 @@ export function BundleBenefitsSection({
               {numDiscountVal >= 30
                 ? `Offering a generous ${discountLabel} discount creates immense purchase urgency. Highlight this as a limited-time flash sale in your marketing channels!`
                 : isEditing
-                  ? "Updates to this bundle save instantly to Shopify and take effect immediately on your storefront without disrupting existing active shopping carts."
-                  : isClassic
-                    ? "For best conversion, name your bundle with an outcome-oriented title (e.g. 'Ultimate Glow Skincare Kit') and ensure component items complement each other."
-                    : isBogo
-                      ? "A 'Buy 2 Get 1 Free' or 'Buy 1 Get 50% Off' offer strikes the ideal balance between customer perceived value and healthy profit margins."
-                      : freeShippingBar
-                        ? "Set your primary shipping goal 15-25% higher than your current Average Order Value (AOV) to motivate customers to add another item to their cart."
-                        : "Place this Frequently Bought Together block right beneath the product buy buttons or above customer reviews for maximum visibility."}
+                  ? "Updates to this perk save instantly to Shopify and take effect immediately on your storefront without disrupting existing active shopping carts."
+                  : freeShippingBar
+                    ? "Set your primary shipping goal 15-25% higher than your current Average Order Value (AOV) to motivate customers to add another item to their cart."
+                    : "Place this Frequently Bought Together block right beneath the product buy buttons or above customer reviews for maximum visibility."}
             </s-paragraph>
           </s-banner>
         </s-stack>

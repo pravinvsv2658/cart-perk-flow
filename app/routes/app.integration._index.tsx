@@ -2,7 +2,6 @@ import type { LoaderFunctionArgs, HeadersFunction } from "react-router";
 import { useLoaderData, useRouteError } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -68,7 +67,7 @@ export default function IntegrationPage() {
             overflow="hidden"
             maxInlineSize="300px"
           >
-            <s-clickable href="/app/integration/create-fbt-bundle">
+            <s-clickable href="/app/integration/fbt-bundle">
               <s-image
                 alt="Frequently Bought Together"
                 src="/fbt-bundle-placeholder.png"
@@ -95,7 +94,7 @@ export default function IntegrationPage() {
                 <s-heading>Frequently Bought Together</s-heading>
               </s-stack>
               <s-button
-                href="/app/integration/create-fbt-bundle"
+                href="/app/integration/fbt-bundle"
                 accessibilityLabel="Create Frequently Bought Together"
               >
                 Create

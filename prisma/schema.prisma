@@ -9,26 +9,192 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model Store {
+  id            String         @id @default(cuid())
+  shop          String         @unique
+  name          String?
+  email         String?
+  currency      String         @default("USD")
+  accessToken   String?
+  planId        String?
+  plan          Plan?          @relation(fields: [planId], references: [id])
+  isInstalled   Boolean        @default(true)
+  installedAt   DateTime       @default(now())
+  uninstalledAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+  bundles       Bundle[]
+}
+
+model Plan {
+  id              String         @id @default(cuid())
+  name            String         @unique
+  price           Float          @default(0.0)
+  currency        String         @default("USD")
+  billingInterval String         @default("EVERY_30_DAYS") @map("billing_interval")
+  trialDays       Int            @default(0) @map("trial_days")
+  bundleLimit     Int            @default(3)
+  features        String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  stores          Store[]
+  subscriptions   Subscription[]
+}
+
+model Subscription {
+  id                    String    @id @default(cuid())
+  shopId                String    @map("shop_id")
+  store                 Store     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  planId                String    @map("plan_id")
+  plan                  Plan      @relation(fields: [planId], references: [id])
+  shopifySubscriptionId String?   @unique @map("shopify_subscription_id")
+  name                  String
+  status                String    @default("ACTIVE")
+  price                 Float     @default(0.0)
+  currency              String    @default("USD")
+  interval              String    @default("EVERY_30_DAYS")
+  trialDays             Int       @default(0) @map("trial_days")
+  currentPeriodEnd      DateTime? @map("current_period_end")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([shopId])
+  @@index([planId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Bundle {
+  id String @id @default(cuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String? @db.Text
+
+  startDate DateTime
+  endDate   DateTime?
+
+  triggerType String @default("SPECIFIC")
+
+  discountType  String @default("NO_DISCOUNT")
+  discountValue Float  @default(0.0)
+
+  bundleType String @default("CLASSIC_BUNDLE") @map("bundle_type")
+
+  status String @default("DRAFT")
+
+  shopifyBundleProductId String?
+  shopifyBundleVariantId String?
+
+  badgeText         String?
+  ctaButtonText     String?
+  rewardMode        String?
+  buyQuantity       Int?
+  rewardQuantity    Int?
+  usageLimit        String?
+  displayDiscountAs String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products BundleProduct[]
+  tags     BundleTag[]
+
+  triggerProducts    BundleTriggerProduct[]
+  triggerCollections BundleTriggerCollection[]
+
+  @@index([storeId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model BundleProduct {
+  id       String @id @default(cuid())
+  bundleId String
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  shopifyId String
+
+  title         String?
+  featuredImage String?
+  price         Float?  @default(0.0)
+
+  qty  Int     @default(1)
+  role String? @default("BUNDLE_ITEM")
+
+  createdAt DateTime @default(now())
+
+  @@index([bundleId])
+  @@index([shopifyId])
+}
+
+model BundleTriggerProduct {
+  id       String @id @default(cuid())
+  bundleId String
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  shopifyId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([bundleId, shopifyId])
+  @@index([shopifyId])
+}
+
+model BundleTriggerCollection {
+  id       String @id @default(cuid())
+  bundleId String
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  shopifyId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([bundleId, shopifyId])
+  @@index([shopifyId])
+}
+
+model BundleTag {
+  id       String @id @default(cuid())
+  bundleId String
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  tag String
+
+  createdAt DateTime @default(now())
+
+  @@unique([bundleId, tag])
+  @@index([tag])
 }

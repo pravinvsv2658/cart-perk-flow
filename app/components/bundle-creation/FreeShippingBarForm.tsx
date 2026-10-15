@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { BundleBenefitsSection } from "./BundleBenefitsSection";
 
@@ -13,6 +14,9 @@ export interface FreeShippingBarFormData {
   bundleName: string;
   bundleType: "FREE_SHIPPING_BAR";
   targetAmount: number;
+  status: "ACTIVE" | "DRAFT";
+  startDate: string;
+  endDate: string | null;
   thresholds: {
     id: number;
     index: number;
@@ -27,6 +31,9 @@ export interface FreeShippingBarFormInitialData {
   bundleName?: string;
   title?: string;
   targetAmount?: string | number;
+  status?: string;
+  startDate?: string | Date;
+  endDate?: string | Date | null;
   thresholds?: {
     id?: number | string;
     amount?: string | number;
@@ -109,6 +116,19 @@ function parsePercentage(val: string): {
   return { isValid: true, value: num };
 }
 
+function formatDateTimeLocal(d?: Date | string | null): string {
+  if (!d) return "";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function FreeShippingBarForm({
   initialData,
   currencySymbol = "$",
@@ -127,6 +147,7 @@ export function FreeShippingBarForm({
   activeShippingBarTitle,
 }: FreeShippingBarFormProps) {
   const shopify = useAppBridge();
+  const navigate = useNavigate();
 
   const [bundleName, setBundleName] = useState<string>(
     String(
@@ -140,6 +161,30 @@ export function FreeShippingBarForm({
       ? String(initialData.targetAmount)
       : "",
   );
+
+  const [status, setStatus] = useState<"ACTIVE" | "DRAFT">(() => {
+    if (hasActiveShippingBar) {
+      return "DRAFT";
+    }
+    if (initialData?.status) {
+      return initialData.status === "DRAFT" ? "DRAFT" : "ACTIVE";
+    }
+    return isLimitReached && !isEditing ? "DRAFT" : "ACTIVE";
+  });
+
+  const [startDate, setStartDate] = useState<string>(() => {
+    return formatDateTimeLocal(initialData?.startDate || new Date());
+  });
+
+  const [hasEndDate, setHasEndDate] = useState<boolean>(() => {
+    return Boolean(initialData?.endDate);
+  });
+
+  const [endDate, setEndDate] = useState<string>(() => {
+    return initialData?.endDate ? formatDateTimeLocal(initialData.endDate) : "";
+  });
+
+  const [scheduleError, setScheduleError] = useState<string>("");
 
   const [thresholds, setThresholds] = useState<Threshold[]>(() => {
     if (
@@ -157,6 +202,52 @@ export function FreeShippingBarForm({
     }
     return [];
   });
+
+  // Sync state whenever initialData changes (e.g. navigating to edit existing bar)
+  useEffect(() => {
+    if (initialData) {
+      setBundleName(
+        String(
+          initialData.bundleName || initialData.title || "Free Shipping Bar",
+        ).trim() || "Free Shipping Bar",
+      );
+      setTargetAmount(
+        initialData.targetAmount !== undefined &&
+          initialData.targetAmount !== null
+          ? String(initialData.targetAmount)
+          : "",
+      );
+      setStatus(
+        hasActiveShippingBar
+          ? "DRAFT"
+          : initialData.status === "DRAFT"
+            ? "DRAFT"
+            : "ACTIVE",
+      );
+      setStartDate(formatDateTimeLocal(initialData.startDate || new Date()));
+      setHasEndDate(Boolean(initialData.endDate));
+      setEndDate(
+        initialData.endDate ? formatDateTimeLocal(initialData.endDate) : "",
+      );
+      if (
+        initialData.thresholds &&
+        Array.isArray(initialData.thresholds) &&
+        initialData.thresholds.length > 0
+      ) {
+        setThresholds(
+          initialData.thresholds.map((t, index: number) => ({
+            id: Number(t.id) || Date.now() + index,
+            amount: String(t.amount ?? ""),
+            discountPercentage: String(
+              t.discountPercentage ?? t.discountValue ?? "",
+            ),
+          })),
+        );
+      } else {
+        setThresholds([]);
+      }
+    }
+  }, [initialData, hasActiveShippingBar]);
 
   const [targetAmountError, setTargetAmountError] = useState("");
   const [thresholdErrors, setThresholdErrors] = useState<
@@ -180,6 +271,18 @@ export function FreeShippingBarForm({
           : "Target amount must be a valid number greater than 0";
       isValid = false;
     }
+
+    let schedErr = "";
+    if (!startDate) {
+      schedErr = "Start date & time is required.";
+      isValid = false;
+    } else if (hasEndDate && endDate) {
+      if (new Date(endDate) <= new Date(startDate)) {
+        schedErr = "End date & time must be after start date & time.";
+        isValid = false;
+      }
+    }
+    setScheduleError(schedErr);
 
     const targetVal = parsedTarget.value;
     let prevVal = targetVal;
@@ -298,13 +401,9 @@ export function FreeShippingBarForm({
     const parsedTarget = parseAmount(targetAmount, currencySymbol);
     if (!parsedTarget.isValid || parsedTarget.value === null) return;
 
-    if (!isEditing && hasActiveShippingBar) {
-      shopify.toast.show(
-        "An active Free Shipping Bar already exists. Only 1 can be created per store for better management.",
-        { isError: true },
-      );
-      return;
-    }
+    const finalStatus: "ACTIVE" | "DRAFT" = hasActiveShippingBar
+      ? "DRAFT"
+      : status;
 
     if (onSubmit) {
       onSubmit({
@@ -315,12 +414,16 @@ export function FreeShippingBarForm({
         bundleName: bundleName.trim() || "Free Shipping Bar",
         bundleType: "FREE_SHIPPING_BAR",
         targetAmount: parsedTarget.value,
+        status: finalStatus,
+        startDate: startDate
+          ? new Date(startDate).toISOString()
+          : new Date().toISOString(),
+        endDate: hasEndDate && endDate ? new Date(endDate).toISOString() : null,
         thresholds: thresholds.map((t, idx) => ({
           id: t.id,
           index: idx + 1,
           amount: parseAmount(t.amount, currencySymbol).value ?? 0,
-          discountPercentage:
-            parsePercentage(t.discountPercentage).value ?? 0,
+          discountPercentage: parsePercentage(t.discountPercentage).value ?? 0,
         })),
       });
     }
@@ -350,14 +453,6 @@ export function FreeShippingBarForm({
               </s-text>
             </s-stack>
           </s-stack>
-
-          <s-button
-            variant="secondary"
-            commandFor="shippingbar-preview-modal"
-            command="--show"
-          >
-            👁️ Preview Storefront
-          </s-button>
         </s-stack>
 
         {hasActiveShippingBar && !isEditing && (
@@ -370,12 +465,18 @@ export function FreeShippingBarForm({
                 An active Free Shipping Bar is already created for your store.
                 Only 1 Free Shipping Bar can be created and active per store for
                 better management. Please edit the existing Free Shipping Bar or
-                deactivate it before creating a new one.
+                set it to Draft before creating a new one.
               </s-paragraph>
               {activeShippingBarId && (
                 <s-button
                   variant="secondary"
                   href={`/app/integration/free-shipping-bar?id=${activeShippingBarId}`}
+                  onClick={(e: any) => {
+                    e.preventDefault();
+                    navigate(
+                      `/app/integration/free-shipping-bar?id=${activeShippingBarId}`,
+                    );
+                  }}
                 >
                   Edit Existing Free Shipping Bar ↗
                 </s-button>
@@ -573,6 +674,101 @@ export function FreeShippingBarForm({
               </s-stack>
             </s-box>
 
+            {/* 3. Schedule & Expiration */}
+            <s-box
+              padding="base"
+              background="base"
+              borderRadius="base"
+              border="base"
+            >
+              <s-stack gap="base">
+                <s-heading>3. Schedule &amp; Expiration</s-heading>
+                <s-text color="subdued">
+                  Optionally schedule when this perk goes live and when it
+                  expires.
+                </s-text>
+
+                <s-grid
+                  gridTemplateColumns="repeat(auto-fit, minmax(240px, 1fr))"
+                  gap="base"
+                >
+                  <s-box>
+                    <s-stack gap="small">
+                      <s-text type="strong">Start Date &amp; Time</s-text>
+                      <input
+                        type="datetime-local"
+                        value={startDate}
+                        onChange={(event) => setStartDate(event.target.value)}
+                        required
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: "8px",
+                          border: "1px solid #c9cccf",
+                          fontSize: "14px",
+                          fontFamily: "inherit",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </s-stack>
+                  </s-box>
+
+                  {hasEndDate ? (
+                    <s-box>
+                      <s-stack gap="small">
+                        <s-text type="strong">End Date &amp; Time</s-text>
+                        <input
+                          type="datetime-local"
+                          value={endDate}
+                          onChange={(event) => setEndDate(event.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            border: scheduleError
+                              ? "1px solid #d82c0d"
+                              : "1px solid #c9cccf",
+                            fontSize: "14px",
+                            fontFamily: "inherit",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </s-stack>
+                    </s-box>
+                  ) : (
+                    <s-box padding="small">
+                      <s-text tone="neutral">
+                        No end date set (runs indefinitely until drafted).
+                      </s-text>
+                    </s-box>
+                  )}
+                </s-grid>
+
+                <s-checkbox
+                  checked={hasEndDate}
+                  onChange={() => setHasEndDate(!hasEndDate)}
+                  label="Set an expiration / end date for this perk"
+                />
+
+                {scheduleError && (
+                  <s-banner tone="critical">
+                    <s-paragraph>{scheduleError}</s-paragraph>
+                  </s-banner>
+                )}
+
+                <s-banner tone="info">
+                  <s-paragraph>
+                    • <strong>Draft</strong> perks remain unpublished regardless
+                    of dates.
+                    <br />• <strong>Active</strong> perks with a future start
+                    date automatically show as <strong>Scheduled</strong>.<br />
+                    • Active perks whose end date has passed automatically show
+                    as <strong>Expired</strong>.
+                  </s-paragraph>
+                </s-banner>
+              </s-stack>
+            </s-box>
+
             {/* Action Buttons */}
             <s-stack
               direction="inline"
@@ -580,13 +776,55 @@ export function FreeShippingBarForm({
               justifyContent="end"
               alignItems="center"
             >
-              {hasActiveShippingBar && !isEditing && (
-                <s-paragraph tone="neutral">
-                  <em>
-                    Already created. Only 1 Free Shipping Bar can be created for better management.
-                  </em>
-                </s-paragraph>
+              {hasActiveShippingBar && (
+                <s-box padding="small" background="subdued" borderRadius="base">
+                  <s-text tone="neutral">
+                    <em>
+                      Notice: Another Free Shipping Bar{" "}
+                      {activeShippingBarTitle
+                        ? `("${activeShippingBarTitle}")`
+                        : ""}{" "}
+                      is currently active. Only 1 can be active at a time, so
+                      this perk will be saved as Draft.
+                    </em>
+                  </s-text>
+                </s-box>
               )}
+
+              {/* Perk Status selector inline before Cancel and Save Changes */}
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-text>
+                  <strong>Perk Status:</strong>
+                </s-text>
+                <div style={{ minWidth: "120px" }}>
+                  <s-select
+                    label="Perk Status"
+                    labelAccessibilityVisibility="exclusive"
+                    value={hasActiveShippingBar ? "DRAFT" : status}
+                    disabled={hasActiveShippingBar ? true : undefined}
+                    onChange={(event: any) =>
+                      setStatus(event.currentTarget.value as "ACTIVE" | "DRAFT")
+                    }
+                  >
+                    {!hasActiveShippingBar && (
+                      <s-option value="ACTIVE">Active</s-option>
+                    )}
+                    <s-option value="DRAFT">Draft</s-option>
+                  </s-select>
+                </div>
+                <s-badge
+                  tone={
+                    !hasActiveShippingBar && status === "ACTIVE"
+                      ? "success"
+                      : "neutral"
+                  }
+                >
+                  {!hasActiveShippingBar && status === "ACTIVE"
+                    ? "Active"
+                    : "Draft"}
+                </s-badge>
+              </s-stack>
+
               {onCancel && (
                 <s-button variant="secondary" onClick={onCancel}>
                   Cancel
@@ -595,10 +833,13 @@ export function FreeShippingBarForm({
               <s-button
                 variant="primary"
                 type="submit"
-                disabled={(!isEditing && hasActiveShippingBar) || undefined}
                 {...(isSubmitting ? { loading: true } : {})}
               >
-                {isSubmitting ? submittingLabel : submitButtonLabel}
+                {isSubmitting
+                  ? submittingLabel
+                  : hasActiveShippingBar
+                    ? "Save as Draft"
+                    : submitButtonLabel}
               </s-button>
             </s-stack>
           </s-stack>
