@@ -1,0 +1,21 @@
+query CartInput {
+  cart {
+    cost {
+      subtotalAmount {
+        amount
+        currencyCode
+      }
+    }
+  }
+
+  discount {
+    discountClasses
+
+    metafield(
+      namespace: "$app:cart-perks-discount"
+      key: "function-configuration"
+    ) {
+      jsonValue
+    }
+  }
+}

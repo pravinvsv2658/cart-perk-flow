@@ -1,0 +1,25 @@
+query DeliveryInput {
+  cart {
+    cost {
+      subtotalAmount {
+        amount
+        currencyCode
+      }
+    }
+
+    deliveryGroups {
+      id
+    }
+  }
+
+  discount {
+    discountClasses
+
+    metafield(
+      namespace: "$app:cart-perks-discount"
+      key: "function-configuration"
+    ) {
+      jsonValue
+    }
+  }
+}

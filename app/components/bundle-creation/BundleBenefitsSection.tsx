@@ -302,7 +302,7 @@ export function BundleBenefitsSection({
                   >
                     <s-stack gap="base">
                       <code>
-                        &lt;div class="cartperks-free-shipping-bar"
+                        &lt;div class="cartperks-shipping-bar"
                         data-cart-total="" data-free-shipping-target=""
                         data-discount-thresholds=""&gt;&amp;nbsp;&lt;/div&gt;
                       </code>
@@ -310,7 +310,7 @@ export function BundleBenefitsSection({
                       <s-button
                         variant="primary"
                         onClick={() => {
-                          const snippet = `<div class="cartperks-free-shipping-bar" data-cart-total="" data-free-shipping-target="" data-discount-thresholds="">&nbsp;</div>`;
+                          const snippet = `<div class="cartperks-shipping-bar" data-cart-total="" data-free-shipping-target="" data-discount-thresholds="">&nbsp;</div>`;
                           navigator.clipboard.writeText(snippet);
                         }}
                       >

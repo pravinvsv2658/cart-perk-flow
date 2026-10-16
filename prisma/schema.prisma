@@ -112,6 +112,7 @@ model Bundle {
 
   shopifyBundleProductId String?
   shopifyBundleVariantId String?
+  shopifyDiscountId      String?
 
   badgeText         String?
   ctaButtonText     String?

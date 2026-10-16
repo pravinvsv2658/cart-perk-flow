@@ -1,0 +1,14 @@
+{% comment %}
+  CartPerksFlow - Master Perks Core Loader
+  This snippet is injected only when the CartPerksFlow App Embed is enabled in Theme Settings.
+  It loads the main CSS and JavaScript and registers global configuration.
+{% endcomment %}
+
+<script>
+  window.__cartPerksFlowEnabled = true;
+  window.__cartPerksShop = {{ shop.permanent_domain | json }};
+  window.__cartPerksRootUrl = {{ routes.root_url | json }};
+</script>
+
+{{ 'main-perks-widget.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'main-perks-widget.js' | asset_url }}" defer="defer"></script>

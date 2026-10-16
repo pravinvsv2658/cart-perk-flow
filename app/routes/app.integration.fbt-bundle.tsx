@@ -88,6 +88,92 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       }
 
+      // Resolve metadata (title & image) for trigger products & collections
+      const triggerProductGids = existing.triggerProducts
+        .map((tp) => {
+          const id = tp.shopifyId.trim();
+          if (id.startsWith("gid://shopify/Product/")) return id;
+          const digits = id.replace(/\D/g, "");
+          return digits ? `gid://shopify/Product/${digits}` : "";
+        })
+        .filter(Boolean);
+
+      const triggerCollectionGids = existing.triggerCollections
+        .map((tc) => {
+          const id = tc.shopifyId.trim();
+          if (id.startsWith("gid://shopify/Collection/")) return id;
+          const digits = id.replace(/\D/g, "");
+          return digits ? `gid://shopify/Collection/${digits}` : "";
+        })
+        .filter(Boolean);
+
+      const titleMap = new Map<string, { title: string; image?: string }>();
+
+      // Pre-seed from bundle's own products
+      existing.products.forEach((p) => {
+        if (p.shopifyId) {
+          const info = {
+            title: p.title || "Product",
+            image: p.featuredImage || "",
+          };
+          titleMap.set(p.shopifyId, info);
+          const digits = p.shopifyId.replace(/\D/g, "");
+          if (digits) {
+            titleMap.set(`gid://shopify/Product/${digits}`, info);
+            titleMap.set(digits, info);
+          }
+        }
+      });
+
+      const idsToFetch = [
+        ...triggerProductGids.filter((gid) => !titleMap.has(gid)),
+        ...triggerCollectionGids.filter((gid) => !titleMap.has(gid)),
+      ];
+
+      if (idsToFetch.length > 0) {
+        try {
+          const nodesRes = await admin.graphql(
+            `#graphql
+            query getTriggerNodes($ids: [ID!]!) {
+              nodes(ids: $ids) {
+                ... on Product {
+                  id
+                  title
+                  featuredImage {
+                    url
+                  }
+                }
+                ... on Collection {
+                  id
+                  title
+                  image {
+                    url
+                  }
+                }
+              }
+            }`,
+            { variables: { ids: idsToFetch } },
+          );
+          const nodesJson = await nodesRes.json();
+          const nodes = (nodesJson.data as any)?.nodes || [];
+          for (const node of nodes) {
+            if (node && node.id) {
+              const nodeInfo = {
+                title: node.title || "",
+                image: node.featuredImage?.url || node.image?.url || "",
+              };
+              titleMap.set(node.id, nodeInfo);
+              const digits = String(node.id).replace(/\D/g, "");
+              if (digits) {
+                titleMap.set(digits, nodeInfo);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch trigger node titles:", e);
+        }
+      }
+
       initialData = {
         id: existing.id,
         bundleId: existing.id,
@@ -111,16 +197,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           qty: p.qty ?? 1,
           role: p.role || "BUNDLE_ITEM",
         })),
-        triggerProducts: existing.triggerProducts.map((tp) => ({
-          id: tp.id,
-          shopifyId: tp.shopifyId,
-          title: "",
-        })),
-        triggerCollections: existing.triggerCollections.map((tc) => ({
-          id: tc.id,
-          shopifyId: tc.shopifyId,
-          title: "",
-        })),
+        triggerProducts: existing.triggerProducts.map((tp) => {
+          const digits = tp.shopifyId.replace(/\D/g, "");
+          const meta =
+            titleMap.get(tp.shopifyId) ||
+            (digits
+              ? titleMap.get(`gid://shopify/Product/${digits}`)
+              : undefined) ||
+            (digits ? titleMap.get(digits) : undefined);
+          return {
+            id: tp.id,
+            shopifyId: tp.shopifyId,
+            title: meta?.title || "Product",
+            image: meta?.image || "",
+          };
+        }),
+        triggerCollections: existing.triggerCollections.map((tc) => {
+          const digits = tc.shopifyId.replace(/\D/g, "");
+          const meta =
+            titleMap.get(tc.shopifyId) ||
+            (digits
+              ? titleMap.get(`gid://shopify/Collection/${digits}`)
+              : undefined) ||
+            (digits ? titleMap.get(digits) : undefined);
+          return {
+            id: tc.id,
+            shopifyId: tc.shopifyId,
+            title: meta?.title || "Collection",
+            image: meta?.image || "",
+          };
+        }),
         tags: existing.tags.map((t) => t.tag),
       };
     }

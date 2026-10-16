@@ -20,6 +20,7 @@ import {
   type FreeShippingBarFormInitialData,
   type FreeShippingBarFormData,
 } from "../components/bundle-creation";
+import { syncShopifyShippingDiscount } from "../services/free-shipping-discount.server";
 
 function getCurrencySymbol(code: string): string {
   if (!code) return "$";
@@ -307,7 +308,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     let savedBundle: any;
+    const isEdit = Boolean(bundleId);
 
+    // 1. Save the shipping bar configuration in Prisma.
     if (bundleId) {
       savedBundle = await prisma.bundle.update({
         where: {
@@ -327,13 +330,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           updatedAt: new Date(),
         },
       });
-
-      return data({
-        success: true,
-        isEdit: true,
-        bundle: savedBundle,
-        wasForcedDraft,
-      });
     } else {
       savedBundle = await prisma.bundle.create({
         data: {
@@ -349,20 +345,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           triggerType: "ALL",
         },
       });
-
-      return data({
-        success: true,
-        isEdit: false,
-        bundle: savedBundle,
-        wasForcedDraft,
-      });
     }
+
+    // 2. Create/update/deactivate the Shopify automatic discount.
+    const shopifyDiscountId = await syncShopifyShippingDiscount({
+      admin,
+      discountId: savedBundle.shopifyDiscountId ?? null,
+      title: savedBundle.title,
+      startDate,
+      endDate,
+      status: newStatus,
+      config: shippingBarConfig,
+    });
+
+    // 3. Save the Shopify discount ID against this bundle.
+    savedBundle = await prisma.bundle.update({
+      where: {
+        id: savedBundle.id,
+      },
+      data: {
+        shopifyDiscountId,
+      },
+    });
+
+    return data({
+      success: true,
+      isEdit,
+      bundle: savedBundle,
+      wasForcedDraft,
+    });
   } catch (err: unknown) {
     const message =
       err instanceof Error
         ? err.message
-        : "Failed to save Free Shipping Bar in database";
-    console.error("Error saving Free Shipping Bar in DB:", err);
+        : "Failed to save the Free Shipping Bar or synchronize its Shopify discount.";
+
+    console.error("Error saving/syncing Free Shipping Bar:", err);
+
     return data({ error: message }, { status: 400 });
   }
 };

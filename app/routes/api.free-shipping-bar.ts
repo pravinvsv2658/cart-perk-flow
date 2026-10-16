@@ -31,27 +31,41 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   try {
     const url = new URL(request.url);
-    let shopDomain = url.searchParams.get("shop");
+    let shopParam = url.searchParams.get("shop") || "";
 
     // Authenticate App Proxy request if available to get shop domain
     try {
-      const { session } = await authenticate.public.appProxy(request);
-      if (session?.shop) {
-        shopDomain = session.shop;
+      const proxyContext = await authenticate.public.appProxy(request);
+      if (proxyContext.session?.shop) {
+        shopParam = proxyContext.session.shop;
       }
     } catch {
       // App proxy might not be signed in local dev or direct call
     }
 
+    const cleanShop = shopParam
+      ? shopParam
+          .replace(/^https?:\/\//, "")
+          .split("/")[0]
+          .split("?")[0]
+          .trim()
+          .toLowerCase()
+      : "";
+
     // Find current store by shop domain
-    const currentStore = shopDomain
-      ? await prisma.store.findUnique({ where: { shop: shopDomain } })
+    let currentStore = cleanShop
+      ? (await prisma.store.findFirst({
+          where: {
+            OR: [{ shop: cleanShop }, { shop: { contains: cleanShop } }],
+          },
+        })) || (await prisma.store.findFirst())
       : await prisma.store.findFirst();
 
-    const now = new Date();
+    // 5-minute clock skew tolerance
+    const now = new Date(Date.now() + 5 * 60 * 1000);
 
     // Query active FREE_SHIPPING_BAR perk for the store
-    const bundle = await prisma.bundle.findFirst({
+    let bundle = await prisma.bundle.findFirst({
       where: {
         ...(currentStore?.id ? { storeId: currentStore.id } : {}),
         status: "ACTIVE",
@@ -70,7 +84,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           success: true,
           active: false,
           data: null,
-          message: "No active free shipping bar found",
+          message: "No active shipping bar found",
         },
         { headers: corsHeaders },
       );

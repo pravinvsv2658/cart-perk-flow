@@ -13,7 +13,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function IntegrationPage() {
   return (
-    <s-page heading="List of Ecommerce Flows">
+    <s-page heading="List of Cart Perks">
       <s-section>
         <s-grid
           gridTemplateColumns="repeat(3, 1fr)"

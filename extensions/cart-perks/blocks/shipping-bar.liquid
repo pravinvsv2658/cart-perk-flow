@@ -1,0 +1,19 @@
+<div
+  class="cartperks-shipping-bar"
+  data-cart-total=""
+  data-free-shipping-target=""
+  data-discount-thresholds=""
+  data-icon-url="{{ 'free-ship-icon.png' | asset_url }}"
+>
+  &nbsp;
+</div>
+
+{% schema %}
+{
+  "name": "Shipping Bar",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["*"]
+  }
+}
+{% endschema %}

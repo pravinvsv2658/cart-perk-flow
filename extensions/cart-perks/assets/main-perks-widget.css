@@ -1,0 +1,245 @@
+/* ==========================================================================
+   CartPerksFlow - Free Shipping Bar & Perks Widget Styles
+   ========================================================================== */
+
+.shopify-app-block[data-block-handle="shipping-bar"] {
+  width: 100%;
+}
+.cartperks-shipping-bar {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5rem 7px;
+  font-family: inherit;
+}
+
+/* Guard: Hidden by default. Only visible when the master app-embed initializes it */
+.cartperks-shipping-bar:not([data-initialized="true"]) {
+  display: none !important;
+}
+
+.cartpage_milestone .cartperks-milestone-icon {
+  position: relative;
+}
+
+.cartpage_milestone .cartperks-milestone-icon::after {
+  background-color: #e5e5e5;
+  width: 13px;
+  height: 13px;
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  transform: rotate(45deg);
+  border-radius: 6px;
+  z-index: -1;
+}
+
+.cartperks-target-amount {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #202223;
+  margin-bottom: 4px;
+}
+
+.cartpage_progress_wrapper,
+.cartperks-progress-wrapper {
+  position: relative;
+  margin: 32px 0 24px 0;
+  box-sizing: border-box;
+}
+
+.cartpage_free_shipp_progress_bar,
+.cartperks-progress-track {
+  width: 100%;
+  height: 8px;
+  background: #e5e5e5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cartpage_progress_bar,
+.cartperks-progress-bar {
+  width: 0;
+  height: 100%;
+  background: #4caf50;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.cartpage_head_free_ship,
+.cartperks-head-free-ship {
+  display: block;
+  margin-top: 16px;
+  line-height: 1.5;
+  font-size: 14px;
+  word-break: break-word;
+  color: #202223;
+}
+
+/* --------------------------
+   Milestones
+--------------------------- */
+
+.cartpage_milestones,
+.cartperks-milestones {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  width: 100%;
+  height: 50px;
+  pointer-events: none;
+}
+
+.cartpage_milestone,
+.cartperks-milestone {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+  transition: all 0.3s ease;
+  pointer-events: auto;
+}
+
+.cartpage_milestone.last,
+.cartpage_milestone.cartperks-milestone-last,
+.cartperks-milestone.last,
+.cartperks-milestone.cartperks-milestone-last {
+  transform: translateX(-100%);
+  text-align: right;
+}
+
+.cartpage_milestone.last .icon,
+.cartperks-milestone.last .icon,
+.cartperks-milestone.cartperks-milestone-last .icon,
+.cartperks-milestone.last .cartperks-milestone-icon,
+.cartperks-milestone.cartperks-milestone-last .cartperks-milestone-icon {
+  margin-right: 0;
+  margin-left: auto;
+  transform-origin: right center;
+}
+
+.cartpage_milestone.first,
+.cartpage_milestone.cartperks-milestone-first,
+.cartperks-milestone.first,
+.cartperks-milestone.cartperks-milestone-first {
+  transform: translateX(0);
+  text-align: left;
+}
+
+.cartpage_milestone.first .icon,
+.cartperks-milestone.first .icon,
+.cartperks-milestone.cartperks-milestone-first .icon,
+.cartperks-milestone.first .cartperks-milestone-icon,
+.cartperks-milestone.cartperks-milestone-first .cartperks-milestone-icon {
+  margin-left: 0;
+  margin-right: auto;
+  transform-origin: left center;
+}
+
+.cartperks-milestone.cartperks-active .cartperks-milestone-icon:after,
+.cartperks-milestone.active .cartperks-milestone-icon:after {
+  background-color: #4caf50;
+  width: 7px;
+  height: 7px;
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  transform: rotate(45deg);
+  border-radius: 6px;
+  z-index: -1;
+}
+
+.cartpage_milestone .icon,
+.cartperks-milestone .icon,
+.cartperks-milestone .cartperks-milestone-icon {
+  width: 70px;
+  height: 26px;
+  background: #e5e5e5;
+  color: #777;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.cartpage_milestone .icon img,
+.cartperks-milestone .icon img,
+.cartperks-milestone .cartperks-milestone-icon img {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.cartpage_milestone .label,
+.cartperks-milestone .label,
+.cartperks-milestone .cartperks-milestone-label {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.cartpage_milestone.active .icon,
+.cartperks-milestone.active .icon,
+.cartperks-milestone.active .cartperks-milestone-icon,
+.cartperks-milestone.cartperks-active .cartperks-milestone-icon,
+.cartperks-milestone.cartperks-milestone-active .cartperks-milestone-icon {
+  background: #4caf50;
+  color: #fff;
+  transform: scale(1.08);
+}
+
+.cartpage_milestone.active .label,
+.cartperks-milestone.active .label,
+.cartperks-milestone.active .cartperks-milestone-label,
+.cartperks-milestone.cartperks-active .cartperks-milestone-label,
+.cartperks-milestone.cartperks-milestone-active .cartperks-milestone-label {
+  color: #4caf50;
+}
+
+/* --------------------------
+   Responsive
+--------------------------- */
+
+@media (max-width: 749px) {
+  .cartpage_progress_wrapper,
+  .cartperks-progress-wrapper {
+    margin-top: 40px;
+  }
+
+  .cartpage_milestone .icon,
+  .cartperks-milestone .icon,
+  .cartperks-milestone .cartperks-milestone-icon {
+    width: 50px;
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .cartpage_milestone .icon img,
+  .cartperks-milestone .icon img,
+  .cartperks-milestone .cartperks-milestone-icon img {
+    width: 15px;
+    height: 15px;
+  }
+
+  .cartpage_milestone .label,
+  .cartperks-milestone .label,
+  .cartperks-milestone .cartperks-milestone-label {
+    font-size: 10px;
+  }
+}

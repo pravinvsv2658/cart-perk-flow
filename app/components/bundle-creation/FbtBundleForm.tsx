@@ -588,6 +588,26 @@ export function FbtBundleForm({
 
   return (
     <>
+      <s-stack
+        direction="inline"
+        justifyContent="space-between"
+        alignItems="center"
+        padding="base"
+      >
+        <s-stack direction="inline" alignItems="center" gap="small">
+          <s-button icon="arrow-left" onClick={onCancel}>
+            Back
+          </s-button>
+          <s-stack gap="none">
+            <s-heading>Frequently Bought Together – Perk Settings:</s-heading>
+            <s-text color="subdued">
+              Configure complementary products, discounts, and bundle offers to
+              encourage customers to purchase multiple items.
+            </s-text>
+          </s-stack>
+        </s-stack>
+      </s-stack>
+
       <form onSubmit={handleFormSubmit}>
         <s-stack direction="block" gap="base" padding="base">
           {/* Plan limit warning banner */}
@@ -738,54 +758,71 @@ export function FbtBundleForm({
                     </s-button>
                   </s-stack>
 
-                  {triggerProducts.length === 0 ? (
-                    <s-box
-                      padding="large"
-                      border="base"
-                      borderRadius="base"
-                      background="subdued"
-                    >
-                      <s-stack
-                        direction="block"
-                        gap="small"
-                        alignItems="center"
-                      >
-                        <s-text tone="neutral">
-                          No target products selected yet.
-                        </s-text>
-                        <s-button onClick={handleSelectTriggerProducts}>
-                          ＋ Select Target Products
-                        </s-button>
-                      </s-stack>
-                    </s-box>
+                  {triggerProducts.length > 0 ? (
+                    <s-stack gap="small">
+                      <s-text color="subdued">
+                        Widget will display on ({triggerProducts.length})
+                        product page(s):
+                      </s-text>
+                      {triggerProducts.map((p, idx) => {
+                        const gid = formatGid(p.shopifyId, "Product");
+                        const matchedProduct = products.find(
+                          (prod) =>
+                            prod.shopifyId === p.shopifyId ||
+                            prod.shopifyId === gid ||
+                            (prod.shopifyId &&
+                              p.shopifyId &&
+                              prod.shopifyId.replace(/\D/g, "") ===
+                                p.shopifyId.replace(/\D/g, "")),
+                        );
+                        const productTitle =
+                          p.title ||
+                          matchedProduct?.title ||
+                          `Product #${idx + 1}`;
+                        const productImage =
+                          p.image || matchedProduct?.featuredImage;
+
+                        return (
+                          <s-grid
+                            key={p.shopifyId || idx}
+                            gridTemplateColumns="36px 1fr auto"
+                            gap="small"
+                            alignItems="center"
+                          >
+                            {productImage ? (
+                              <s-image alt={productTitle} src={productImage} />
+                            ) : (
+                              <s-box background="subdued" borderRadius="base" />
+                            )}
+                            <s-button
+                              onClick={() => {
+                                (shopify as any)?.intents?.invoke?.(
+                                  "edit:shopify/Product",
+                                  {
+                                    value: gid,
+                                  },
+                                );
+                              }}
+                              target="_blank"
+                              variant="tertiary"
+                            >
+                              <strong>{productTitle}</strong>
+                            </s-button>
+                            <s-button
+                              variant="tertiary"
+                              onClick={() => handleRemoveTriggerProduct(idx)}
+                            >
+                              ✕
+                            </s-button>
+                          </s-grid>
+                        );
+                      })}
+                    </s-stack>
                   ) : (
-                    <s-box
-                      padding="small"
-                      background="subdued"
-                      borderRadius="base"
-                      border="base"
-                    >
-                      <s-stack direction="block" gap="small">
-                        <s-text tone="neutral">
-                          <strong>
-                            Active Target Products ({triggerProducts.length}):
-                          </strong>
-                        </s-text>
-                        <s-stack direction="inline" gap="small">
-                          {triggerProducts.map((tp, idx) => (
-                            <s-badge key={tp.shopifyId || idx} tone="info">
-                              {tp.title || `Product #${idx + 1}`}
-                              <s-button
-                                variant="tertiary"
-                                onClick={() => handleRemoveTriggerProduct(idx)}
-                              >
-                                ✕
-                              </s-button>
-                            </s-badge>
-                          ))}
-                        </s-stack>
-                      </s-stack>
-                    </s-box>
+                    <s-text color="subdued">
+                      No target products selected yet. Click "Select Target
+                      Products".
+                    </s-text>
                   )}
                 </s-stack>
               )}
@@ -808,57 +845,60 @@ export function FbtBundleForm({
                     </s-button>
                   </s-stack>
 
-                  {triggerCollections.length === 0 ? (
-                    <s-box
-                      padding="large"
-                      border="base"
-                      borderRadius="base"
-                      background="subdued"
-                    >
-                      <s-stack
-                        direction="block"
-                        gap="small"
-                        alignItems="center"
-                      >
-                        <s-text tone="neutral">
-                          No target collections selected yet.
-                        </s-text>
-                        <s-button onClick={handleSelectTriggerCollections}>
-                          ＋ Select Target Collections
-                        </s-button>
-                      </s-stack>
-                    </s-box>
+                  {triggerCollections.length > 0 ? (
+                    <s-stack gap="small">
+                      <s-text color="subdued">
+                        Widget will display on all products in (
+                        {triggerCollections.length}) collection(s):
+                      </s-text>
+                      {triggerCollections.map((col, idx) => {
+                        const gid = formatGid(col.shopifyId, "Collection");
+                        return (
+                          <s-grid
+                            key={col.shopifyId || idx}
+                            gridTemplateColumns="36px 1fr auto"
+                            gap="small"
+                            alignItems="center"
+                          >
+                            {col.image ? (
+                              <s-image
+                                alt={col.title || "Collection"}
+                                src={col.image}
+                              />
+                            ) : (
+                              <s-box background="subdued" borderRadius="base" />
+                            )}
+                            <s-button
+                              onClick={() => {
+                                (shopify as any)?.intents?.invoke?.(
+                                  "edit:shopify/Collection",
+                                  {
+                                    value: gid,
+                                  },
+                                );
+                              }}
+                              target="_blank"
+                              variant="tertiary"
+                            >
+                              <strong>
+                                {col.title || `Collection #${idx + 1}`}
+                              </strong>
+                            </s-button>
+                            <s-button
+                              variant="tertiary"
+                              onClick={() => handleRemoveTriggerCollection(idx)}
+                            >
+                              ✕
+                            </s-button>
+                          </s-grid>
+                        );
+                      })}
+                    </s-stack>
                   ) : (
-                    <s-box
-                      padding="small"
-                      background="subdued"
-                      borderRadius="base"
-                      border="base"
-                    >
-                      <s-stack direction="block" gap="small">
-                        <s-text tone="neutral">
-                          <strong>
-                            Active Target Collections (
-                            {triggerCollections.length}):
-                          </strong>
-                        </s-text>
-                        <s-stack direction="inline" gap="small">
-                          {triggerCollections.map((tc, idx) => (
-                            <s-badge key={tc.shopifyId || idx} tone="neutral">
-                              {tc.title || `Collection #${idx + 1}`}
-                              <s-button
-                                variant="tertiary"
-                                onClick={() =>
-                                  handleRemoveTriggerCollection(idx)
-                                }
-                              >
-                                ✕
-                              </s-button>
-                            </s-badge>
-                          ))}
-                        </s-stack>
-                      </s-stack>
-                    </s-box>
+                    <s-text color="subdued">
+                      No target collections selected yet. Click "Select Target
+                      Collections".
+                    </s-text>
                   )}
                 </s-stack>
               )}
@@ -1028,53 +1068,75 @@ export function FbtBundleForm({
                       <s-table-header>Action</s-table-header>
                     </s-table-header-row>
                     <s-table-body>
-                      {products.map((item, index) => (
-                        <s-table-row key={item.shopifyId || index}>
-                          <s-table-cell>
-                            <div
-                              style={{
-                                width: "44px",
-                                height: "44px",
-                                borderRadius: "6px",
-                                overflow: "hidden",
-                                background: "#f1f2f3",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              {item.featuredImage ? (
-                                <img
-                                  src={item.featuredImage}
-                                  alt={item.title}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                  }}
-                                />
-                              ) : (
-                                <span>📦</span>
-                              )}
-                            </div>
-                          </s-table-cell>
-                          <s-table-cell>
-                            <strong>{item.title}</strong>
-                          </s-table-cell>
-                          <s-table-cell>
-                            {currencySymbol}
-                            {(item.price || 0).toFixed(2)}
-                          </s-table-cell>
-                          <s-table-cell>
-                            <s-button
-                              variant="secondary"
-                              onClick={() => handleRemoveProduct(index)}
-                            >
-                              Remove
-                            </s-button>
-                          </s-table-cell>
-                        </s-table-row>
-                      ))}
+                      {products.map((item, index) => {
+                        const gid = formatGid(item.shopifyId, "Product");
+                        return (
+                          <s-table-row key={item.shopifyId || index}>
+                            <s-table-cell>
+                              <div
+                                onClick={() => {
+                                  (shopify as any)?.intents?.invoke?.(
+                                    "edit:shopify/Product",
+                                    {
+                                      value: gid,
+                                    },
+                                  );
+                                }}
+                                style={{
+                                  width: "44px",
+                                  height: "44px",
+                                  borderRadius: "6px",
+                                  overflow: "hidden",
+                                  background: "#f1f2f3",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {item.featuredImage ? (
+                                  <s-image
+                                    alt={item.title}
+                                    src={item.featuredImage}
+                                  />
+                                ) : (
+                                  <span>📦</span>
+                                )}
+                              </div>
+                            </s-table-cell>
+                            <s-table-cell>
+                              <s-button
+                                onClick={() => {
+                                  (shopify as any)?.intents?.invoke?.(
+                                    "edit:shopify/Product",
+                                    {
+                                      value: gid,
+                                    },
+                                  );
+                                }}
+                                target="_blank"
+                                variant="tertiary"
+                              >
+                                <strong>{item.title}</strong>
+                              </s-button>
+                            </s-table-cell>
+                            <s-table-cell>
+                              {currencySymbol}
+                              {(item.price || 0).toFixed(2)}
+                            </s-table-cell>
+                            <s-table-cell>
+                              <s-badge tone="info">
+                                <s-button
+                                  variant="tertiary"
+                                  onClick={() => handleRemoveProduct(index)}
+                                >
+                                  ✕
+                                </s-button>
+                              </s-badge>
+                            </s-table-cell>
+                          </s-table-row>
+                        );
+                      })}
                     </s-table-body>
                   </s-table>
 
